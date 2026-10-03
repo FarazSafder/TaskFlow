@@ -8,7 +8,9 @@ A modern Task Management REST API built with **Django** and **Django REST Framew
 
 - **User Authentication**: Secure user registration, login, and logout powered by `rest_framework_simplejwt`.
 - **JWT Authentication & Token Blacklisting**: Access and refresh token generation with blacklist support on logout.
-- **Task Management**: Structured task tracking (title, description, completion status, timestamps) associated with registered users.
+- **Task Management CRUD**: Full CRUD operations for user tasks (list, create, retrieve, update, delete) handled via DRF `ModelViewSet` and routers.
+- **Automatic User Scoping**: Authenticated users can only view and manage their own tasks.
+- **Auto Timestamping**: Tracks creation time and automatically records completion timestamps (`completed_at`).
 - **RESTful Architecture**: Clean, modular API design adhering to REST conventions.
 
 ---
@@ -26,14 +28,16 @@ A modern Task Management REST API built with **Django** and **Django REST Framew
 
 ```text
 task-management/
-├── tasks/               # Main project configuration (settings, URLs, WSGI)
+├── tasks/               # Main project configuration (settings, root URLs, WSGI)
 ├── users/               # Authentication & user management app
 │   ├── serializers.py   # Register & Login serializers
 │   ├── views.py         # RegisterView, LoginView, LogoutView
-│   └── urls.py          # Auth route definitions
+│   └── urls.py          # Auth routes (/api/auth/...)
 ├── tasksmeng/           # Task management app
 │   ├── models.py        # Task model definition
-│   └── views.py         # Task views & logic
+│   ├── serializers.py   # TaskSerializers
+│   ├── views.py         # TaskView (ModelViewSet)
+│   └── urls.py          # DefaultRouter routes (/api/tasks/...)
 ├── manage.py            # Django CLI management script
 ├── .gitignore           # Git ignore rules
 └── README.md            # Project documentation
@@ -105,15 +109,22 @@ The API will be available at `http://127.0.0.1:8000/`.
 
 ## 📡 API Endpoints
 
-### 🔐 Authentication
+All authenticated requests must include the JWT token in the Authorization header:
+```http
+Authorization: Bearer <access_token>
+```
+
+---
+
+### 🔐 Authentication (`/api/auth/`)
 
 | Method | Endpoint | Description | Auth Required |
 |---|---|---|---|
 | `POST` | `/api/auth/register/` | Register a new user account | No |
 | `POST` | `/api/auth/login/` | Log in and receive JWT access & refresh tokens | No |
-| `POST` | `/api/auth/logout/` | Blacklist the refresh token and log out | Yes (`Bearer <token>`) |
+| `POST` | `/api/auth/logout/` | Blacklist the refresh token and log out | Yes |
 
-#### Sample Requests
+#### Authentication Samples
 
 ##### **1. Register User**
 `POST /api/auth/register/`
@@ -125,6 +136,18 @@ The API will be available at `http://127.0.0.1:8000/`.
 }
 ```
 
+**Response (201 Created):**
+```json
+{
+  "message": "User Created",
+  "user": {
+    "id": 1,
+    "username": "johndoe",
+    "email": "johndoe@example.com"
+  }
+}
+```
+
 ##### **2. Login**
 `POST /api/auth/login/`
 ```json
@@ -133,7 +156,8 @@ The API will be available at `http://127.0.0.1:8000/`.
   "password": "secretpassword123"
 }
 ```
-**Response:**
+
+**Response (200 OK):**
 ```json
 {
   "message": "Login successful",
@@ -150,6 +174,71 @@ The API will be available at `http://127.0.0.1:8000/`.
   "refresh": "<refresh_token>"
 }
 ```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Logout successful"
+}
+```
+
+---
+
+### 📋 Task Management (`/api/tasks/`)
+
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| `GET` | `/api/tasks/` | List all tasks for current user (ordered newest first) | Yes |
+| `POST` | `/api/tasks/` | Create a new task (auto-assigned to current user) | Yes |
+| `GET` | `/api/tasks/<id>/` | Retrieve details of a specific task | Yes |
+| `PUT` | `/api/tasks/<id>/` | Update all fields of a specific task | Yes |
+| `PATCH` | `/api/tasks/<id>/` | Partially update a task (e.g., mark as completed) | Yes |
+| `DELETE` | `/api/tasks/<id>/` | Delete a specific task | Yes |
+
+#### Task Management Samples
+
+##### **1. Create Task**
+`POST /api/tasks/`  
+**Headers:** `Authorization: Bearer <access_token>`
+```json
+{
+  "title": "Complete Django documentation",
+  "description": "Write API docs and update README",
+  "completed": false
+}
+```
+
+##### **2. List Tasks**
+`GET /api/tasks/`  
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200 OK):**
+```json
+[
+  {
+    "title": "Complete Django documentation",
+    "description": "Write API docs and update README",
+    "completed": false
+  }
+]
+```
+
+##### **3. Update / Complete Task**
+`PATCH /api/tasks/<id>/`  
+**Headers:** `Authorization: Bearer <access_token>`
+```json
+{
+  "completed": true
+}
+```
+
+> **Note**: When `completed` is marked `true`, the `completed_at` timestamp is automatically set in UTC.
+
+##### **4. Delete Task**
+`DELETE /api/tasks/<id>/`  
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (204 No Content)**
 
 ---
 
